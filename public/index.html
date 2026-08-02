@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeonChat - Persistent Profile & DP</title>
+    <title>NeonChat - Live Video & Text Chat</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -13,7 +13,6 @@
         .profile-card { background: #161622; border: 1px solid #00ffcc; padding: 20px; border-radius: 20px; width: 90%; max-width: 380px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 25px rgba(0,255,204,0.25); text-align: center; }
         .profile-card h2 { color: #00ffcc; font-size: 20px; }
         
-        /* Profile Image Upload Box */
         .avatar-upload-box { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 5px 0; }
         .avatar-preview { width: 80px; height: 80px; border-radius: 50%; border: 2px solid #00ffcc; object-fit: cover; background: #222232; }
         .upload-btn-label { background: #222232; border: 1px dashed #00ffcc; color: #00ffcc; padding: 6px 12px; border-radius: 12px; font-size: 11px; cursor: pointer; }
@@ -60,19 +59,16 @@
 </head>
 <body>
 
-    <!-- Profile Setup Overlay Modal -->
     <div class="modal-overlay" id="profileModal">
         <div class="profile-card">
             <h2>Create Your Profile</h2>
 
-            <!-- Avatar Preview & Gallery Upload -->
             <div class="avatar-upload-box">
                 <img src="https://via.placeholder.com/80/222232/00ffcc?text=DP" id="previewDP" class="avatar-preview">
                 <label for="dpFileInput" class="upload-btn-label">📷 Upload Photo from Gallery</label>
                 <input type="file" id="dpFileInput" accept="image/*" onchange="loadGalleryPhoto(event)">
             </div>
 
-            <!-- Google One-Tap Sign In -->
             <div class="google-btn-box">
                 <div id="g_id_onload"
                     data-client_id="409779126550-8og63e04hvtu9d5k038mfjdnf1l8rhgg.apps.googleusercontent.com"
@@ -157,7 +153,6 @@
 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Permanent LocalStorage Auto-Login Check
         window.onload = () => {
             const savedProfile = localStorage.getItem('neon_user_profile_v2');
             if (savedProfile) {
@@ -173,7 +168,7 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    myProfile.dp = e.target.result; // Base64 Image String
+                    myProfile.dp = e.target.result;
                     document.getElementById('previewDP').src = e.target.result;
                 };
                 reader.readAsDataURL(file);
@@ -202,7 +197,6 @@
             myProfile.country = document.getElementById('countryInput').value || '🌍 Global';
             if (!myProfile.dp) myProfile.dp = 'https://via.placeholder.com/80/00ffcc/000000?text=User';
 
-            // Permanent Save
             localStorage.setItem('neon_user_profile_v2', JSON.stringify(myProfile));
 
             applyProfileToUI();
@@ -232,8 +226,19 @@
             }).catch(err => alert("Camera permission required!"));
         }
 
+        function closePeerConnection() {
+            if (peerConnection) {
+                peerConnection.ontrack = null;
+                peerConnection.onicecandidate = null;
+                peerConnection.close();
+                peerConnection = null;
+            }
+            targetPeerId = null;
+            remoteVideo.srcObject = null;
+        }
+
         function createPeerConnection(peerId) {
-            if (peerConnection) peerConnection.close();
+            closePeerConnection();
 
             peerConnection = new RTCPeerConnection(rtcConfig);
 
@@ -259,23 +264,18 @@
             socket.emit('signal', { to: targetPeerId, signal: { profile: myProfile } });
 
             if (data.initiator) {
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                socket.emit('signal', { to: targetPeerId, signal: { sdp: offer } });
+                try {
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    socket.emit('signal', { to: targetPeerId, signal: { sdp: offer } });
+                } catch (e) { console.error(e); }
             }
         });
 
-        // Soft Reconnect on Disconnect (NO PAGE RELOAD = NO LOGOUT)
         socket.on('partner-disconnected', () => {
-            if (peerConnection) peerConnection.close();
-            remoteVideo.srcObject = null;
-            document.getElementById('partnerLabel').innerText = "Partner Left. Searching new...";
+            closePeerConnection();
+            document.getElementById('partnerLabel').innerText = "Partner Left. Finding next...";
             appendMessage("System", "Partner disconnected.");
-            
-            // Re-search automatically without reload
-            setTimeout(() => {
-                socket.emit('find-next');
-            }, 1000);
         });
 
         socket.on('signal', async data => {
@@ -290,26 +290,31 @@
                 return;
             }
 
-            createPeerConnection(data.from);
+            if (!peerConnection) {
+                createPeerConnection(data.from);
+            }
 
             if (data.signal.sdp) {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
-                if (data.signal.sdp.type === 'offer') {
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    socket.emit('signal', { to: data.from, signal: { sdp: answer } });
-                }
+                try {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
+                    if (data.signal.sdp.type === 'offer') {
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+                        socket.emit('signal', { to: data.from, signal: { sdp: answer } });
+                    }
+                } catch(e) { console.error(e); }
             } else if (data.signal.candidate) {
                 try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                    if (peerConnection.remoteDescription) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                    }
                 } catch(e) {}
             }
         });
 
         function findNextPartner() {
-            if (peerConnection) peerConnection.close();
-            remoteVideo.srcObject = null;
-            document.getElementById('partnerLabel').innerText = "Searching Partner...";
+            closePeerConnection();
+            document.getElementById('partnerLabel').innerText = "Searching new partner...";
             socket.emit('find-next');
         }
 
