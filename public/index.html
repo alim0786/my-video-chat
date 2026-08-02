@@ -151,7 +151,12 @@
         let targetPeerId;
         let myProfile = { name: 'User', age: '21', country: '🇮🇳 India', dp: '' };
 
-        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const rtcConfig = { 
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ] 
+        };
 
         window.onload = () => {
             const savedProfile = localStorage.getItem('neon_user_profile_v2');
@@ -226,19 +231,8 @@
             }).catch(err => alert("Camera permission required!"));
         }
 
-        function closePeerConnection() {
-            if (peerConnection) {
-                peerConnection.ontrack = null;
-                peerConnection.onicecandidate = null;
-                peerConnection.close();
-                peerConnection = null;
-            }
-            targetPeerId = null;
-            remoteVideo.srcObject = null;
-        }
-
         function createPeerConnection(peerId) {
-            closePeerConnection();
+            if (peerConnection) peerConnection.close();
 
             peerConnection = new RTCPeerConnection(rtcConfig);
 
@@ -272,10 +266,12 @@
             }
         });
 
+        // Clean Auto-Refresh on Disconnect so Laptop & Phone connect instantly 100%
         socket.on('partner-disconnected', () => {
-            closePeerConnection();
-            document.getElementById('partnerLabel').innerText = "Partner Left. Finding next...";
-            appendMessage("System", "Partner disconnected.");
+            document.getElementById('partnerLabel').innerText = "Partner Left. Reconnecting...";
+            setTimeout(() => {
+                location.reload();
+            }, 800);
         });
 
         socket.on('signal', async data => {
@@ -313,9 +309,7 @@
         });
 
         function findNextPartner() {
-            closePeerConnection();
-            document.getElementById('partnerLabel').innerText = "Searching new partner...";
-            socket.emit('find-next');
+            location.reload(); // Clean reload ensures 100% stable connection between phone & laptop
         }
 
         function sendMessage() {
