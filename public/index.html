@@ -3,52 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeonChat - Selfie Cam Live Call</title>
+    <title>NeonChat - Live Video & Text Chat</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #0c0c0e; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 12px; }
+        body { background: #0c0c0e; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
         
-        header { margin-bottom: 10px; text-align: center; }
-        header h1 { font-size: 22px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.3); }
-        .badge { background: #ff0055; padding: 3px 8px; border-radius: 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        /* Modal Profile Overlay */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
+        .profile-card { background: #161622; border: 1px solid #00ffcc; padding: 25px; border-radius: 20px; width: 90%; max-width: 360px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 0 20px rgba(0,255,204,0.2); }
+        .profile-card h2 { color: #00ffcc; text-align: center; font-size: 20px; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .input-group label { font-size: 12px; color: #aaa; }
+        .input-group input, .input-group select { background: #222232; border: 1px solid #333348; color: white; padding: 10px; border-radius: 8px; outline: none; font-size: 14px; }
+        .btn-start { background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 12px; border-radius: 10px; font-size: 15px; cursor: pointer; margin-top: 5px; }
+
+        header { margin-bottom: 8px; text-align: center; }
+        header h1 { font-size: 20px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.3); }
+        .badge { background: #ff0055; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
 
         .app-container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 10px; }
         
         .video-grid { display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; }
-        .video-box { position: relative; flex: 1; min-width: 280px; max-width: 440px; height: 300px; background: #16161e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3a; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .video-box { position: relative; flex: 1; min-width: 280px; max-width: 440px; height: 260px; background: #16161e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3a; }
         
-        /* Remote partner video normal dikhega */
         video { width: 100%; height: 100%; object-fit: cover; transition: filter 0.15s ease; }
-        
-        /* Local user video Selfie Camera ki tarah MIRROR HOGA */
         #localVideo { transform: scaleX(-1); }
         
-        .user-tag { position: absolute; bottom: 12px; left: 12px; background: rgba(0,0,0,0.65); backdrop-filter: blur(5px); padding: 5px 12px; border-radius: 20px; font-size: 11px; border: 1px solid rgba(255,255,255,0.1); }
+        .user-tag { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); padding: 4px 10px; border-radius: 15px; font-size: 11px; border: 1px solid rgba(255,255,255,0.1); }
 
-        .controls-card { background: #15151c; border-radius: 16px; padding: 12px; border: 1px solid #252533; display: flex; flex-direction: column; gap: 10px; }
-        
-        .filter-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
-        .filter-btn { background: #20202c; color: #bbb; border: 1px solid #323245; padding: 7px 12px; border-radius: 20px; font-size: 11px; white-space: nowrap; cursor: pointer; transition: 0.2s; }
-        .filter-btn.active, .filter-btn:hover { background: #00ffcc; color: #000; font-weight: bold; border-color: #00ffcc; }
+        /* Live Chat Section */
+        .chat-card { background: #15151c; border-radius: 16px; padding: 10px; border: 1px solid #252533; height: 150px; display: flex; flex-direction: column; justify-content: space-between; }
+        .chat-messages { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 5px; height: 100px; font-size: 12px; }
+        .chat-msg { background: #222230; padding: 6px 10px; border-radius: 8px; width: fit-content; max-width: 85%; }
+        .chat-msg span { font-weight: bold; color: #00ffcc; }
+        .chat-input-row { display: flex; gap: 6px; }
+        .chat-input { flex: 1; background: #20202c; border: 1px solid #323245; color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; outline: none; }
+        .btn-send { background: #00ffcc; color: #000; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
+
+        .controls-card { background: #15151c; border-radius: 16px; padding: 10px; border: 1px solid #252533; display: flex; flex-direction: column; gap: 8px; }
+        .filter-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+        .filter-btn { background: #20202c; color: #bbb; border: 1px solid #323245; padding: 6px 10px; border-radius: 15px; font-size: 11px; white-space: nowrap; cursor: pointer; }
+        .filter-btn.active { background: #00ffcc; color: #000; font-weight: bold; }
 
         .action-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .match-select { background: #20202c; color: white; border: 1px solid #323245; padding: 10px 12px; border-radius: 10px; font-size: 12px; }
-        
-        .btn-next { flex: 1; background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 12px 16px; border-radius: 10px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,255,204,0.3); }
-        .btn-vip { background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: bold; border: none; padding: 12px 14px; border-radius: 10px; font-size: 12px; cursor: pointer; }
+        .btn-next { flex: 1; background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .btn-vip { background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: bold; border: none; padding: 10px; border-radius: 8px; font-size: 12px; cursor: pointer; }
     </style>
 </head>
 <body>
 
+    <!-- Profile Setup Popup Modal -->
+    <div class="modal-overlay" id="profileModal">
+        <div class="profile-card">
+            <h2>Setup Your Profile</h2>
+            <div class="input-group">
+                <label>Your Name / Username</label>
+                <input type="text" id="usernameInput" placeholder="e.g. Alex" value="User">
+            </div>
+            <div class="input-group">
+                <label>Age</label>
+                <input type="number" id="ageInput" placeholder="18+" value="21">
+            </div>
+            <div class="input-group">
+                <label>Country</label>
+                <select id="countryInput">
+                    <option value="🇮🇳 India">🇮🇳 India</option>
+                    <option value="🇺🇸 USA">🇺🇸 USA</option>
+                    <option value="🇬🇧 UK">🇬🇧 UK</option>
+                    <option value="🇨🇦 Canada">🇨🇦 Canada</option>
+                    <option value="🌍 Global">🌍 Other / Global</option>
+                </select>
+            </div>
+            <button class="btn-start" onclick="saveProfileAndStart()">Start Video Match 🚀</button>
+        </div>
+    </div>
+
     <header>
-        <h1>NEON CHAT <span class="badge">Selfie View</span></h1>
+        <h1>NEON CHAT <span class="badge">Live Chat</span></h1>
     </header>
 
     <div class="app-container">
+        <!-- Video Screen -->
         <div class="video-grid">
             <div class="video-box">
                 <video id="localVideo" autoplay muted playsinline></video>
-                <div class="user-tag">You (Selfie Cam)</div>
+                <div class="user-tag" id="myTag">You</div>
             </div>
             <div class="video-box">
                 <video id="remoteVideo" autoplay playsinline></video>
@@ -56,27 +95,30 @@
             </div>
         </div>
 
+        <!-- Live Text Chat Box -->
+        <div class="chat-card">
+            <div class="chat-messages" id="chatBox">
+                <div class="chat-msg"><span>System:</span> Welcome to Live Chat! Say hi 👋</div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" class="chat-input" id="msgInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
+                <button class="btn-send" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <!-- Filters & Controls -->
         <div class="controls-card">
-            <span style="font-size: 11px; color: #888; font-weight: bold; letter-spacing: 0.5px;">INSTAGRAM & TIKTOK FILTERS</span>
             <div class="filter-row">
                 <button class="filter-btn active" onclick="applyFilter('none', this)">Normal</button>
                 <button class="filter-btn" onclick="applyFilter('beauty', this)">✨ Beauty Glow</button>
-                <button class="filter-btn" onclick="applyFilter('sunset', this)">🌇 Sunset Warm</button>
-                <button class="filter-btn" onclick="applyFilter('cyber', this)">👾 Cyber Neon</button>
-                <button class="filter-btn" onclick="applyFilter('vintage', this)">🎬 Vintage Retro</button>
-                <button class="filter-btn" onclick="applyFilter('matrix', this)">💚 Matrix Code</button>
+                <button class="filter-btn" onclick="applyFilter('sunset', this)">🌇 Sunset</button>
+                <button class="filter-btn" onclick="applyFilter('cyber', this)">👾 Cyber</button>
                 <button class="filter-btn" onclick="applyFilter('pink', this)">🌸 Soft Pink</button>
-                <button class="filter-btn" onclick="applyFilter('noir', this)">🖤 Moody Noir</button>
             </div>
 
             <div class="action-row">
-                <select class="match-select" id="genderPref">
-                    <option value="all">Match: Everyone</option>
-                    <option value="female">Match: Girls (VIP 👑)</option>
-                    <option value="male">Match: Guys (VIP 👑)</option>
-                </select>
-                <button class="btn-next" onclick="nextPartner()">Next ➔</button>
-                <button class="btn-vip" onclick="openVipModal()">👑 VIP</button>
+                <button class="btn-next" onclick="location.reload()">Next Partner ➔</button>
+                <button class="btn-vip" onclick="alert('👑 VIP Feature: Unlimited Filters')">👑 VIP</button>
             </div>
         </div>
     </div>
@@ -90,54 +132,53 @@
         let localStream;
         let peerConnection;
         let targetPeerId;
+        let myProfile = {};
 
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
+        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Front Camera Preferences (FacingMode: user)
-        navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: "user",
-                width: { ideal: 640, max: 854 },
-                height: { ideal: 480, max: 480 },
-                frameRate: { ideal: 30, max: 60 }
-            },
-            audio: true
-        }).then(stream => {
-            localStream = stream;
-            localVideo.srcObject = stream;
-        }).catch(err => alert("Camera permission required!"));
+        function saveProfileAndStart() {
+            const name = document.getElementById('usernameInput').value || 'Guest';
+            const age = document.getElementById('ageInput').value || '18';
+            const country = document.getElementById('countryInput').value || '🌍 Global';
+
+            myProfile = { name, age, country };
+            document.getElementById('myTag').innerText = `${name}, ${age} (${country})`;
+            document.getElementById('profileModal').style.display = 'none';
+
+            startCamera();
+        }
+
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: true
+            }).then(stream => {
+                localStream = stream;
+                localVideo.srcObject = stream;
+            }).catch(err => alert("Camera permission required!"));
+        }
 
         function createPeerConnection(peerId) {
             peerConnection = new RTCPeerConnection(rtcConfig);
-
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = event => {
                 remoteVideo.srcObject = event.streams[0];
-                document.getElementById('partnerLabel').innerText = "Live Connected 🟢";
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    socket.emit('signal', {
-                        to: peerId,
-                        signal: { candidate: event.candidate }
-                    });
+                    socket.emit('signal', { to: peerId, signal: { candidate: event.candidate } });
                 }
             };
         }
 
         socket.on('match', async data => {
             targetPeerId = data.peerId;
-            document.getElementById('partnerLabel').innerText = "Connecting Stream...";
             createPeerConnection(targetPeerId);
+
+            // Send My Profile to Partner
+            socket.emit('signal', { to: targetPeerId, signal: { profile: myProfile } });
 
             if (data.initiator) {
                 const offer = await peerConnection.createOffer();
@@ -147,7 +188,16 @@
         });
 
         socket.on('signal', async data => {
-            if (!peerConnection) createPeerConnection(data.from);
+            if (!peerConnection && !data.signal.profile && !data.signal.chat) createPeerConnection(data.from);
+
+            if (data.signal.profile) {
+                const p = data.signal.profile;
+                document.getElementById('partnerLabel').innerText = `🟢 ${p.name}, ${p.age} (${p.country})`;
+            }
+
+            if (data.signal.chat) {
+                appendMessage(data.signal.sender, data.signal.chat);
+            }
 
             if (data.signal.sdp) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
@@ -161,49 +211,36 @@
             }
         });
 
-        // Fast Video Filters (Preserves Selfie Mirror View)
+        // Chat Sending System
+        function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if (!text || !targetPeerId) return;
+
+            appendMessage("You", text);
+            socket.emit('signal', { to: targetPeerId, signal: { chat: text, sender: myProfile.name } });
+            input.value = '';
+        }
+
+        function appendMessage(sender, text) {
+            const chatBox = document.getElementById('chatBox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-msg';
+            msgDiv.innerHTML = `<span>${sender}:</span> ${text}`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Filters
         function applyFilter(filterType, btnElement) {
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
             btnElement.classList.add('active');
 
-            switch(filterType) {
-                case 'beauty':
-                    localVideo.style.filter = 'brightness(1.12) contrast(1.05) saturate(1.1)';
-                    break;
-                case 'sunset':
-                    localVideo.style.filter = 'sepia(0.4) saturate(1.4) brightness(1.05)';
-                    break;
-                case 'cyber':
-                    localVideo.style.filter = 'hue-rotate(190deg) saturate(1.6)';
-                    break;
-                case 'vintage':
-                    localVideo.style.filter = 'sepia(0.25) contrast(1.2) brightness(0.95)';
-                    break;
-                case 'matrix':
-                    localVideo.style.filter = 'hue-rotate(90deg) saturate(2) brightness(0.9)';
-                    break;
-                case 'pink':
-                    localVideo.style.filter = 'hue-rotate(300deg) saturate(1.2) brightness(1.1)';
-                    break;
-                case 'noir':
-                    localVideo.style.filter = 'grayscale(1) contrast(1.3)';
-                    break;
-                default:
-                    localVideo.style.filter = 'none';
-            }
-        }
-
-        function nextPartner() {
-            const gender = document.getElementById('genderPref').value;
-            if(gender !== 'all') {
-                alert("👑 Gender Matching is a VIP Feature! Upgrade to unlock.");
-                return;
-            }
-            location.reload();
-        }
-
-        function openVipModal() {
-            alert("👑 VIP Subscription Pass:\n\n• Unlimited Girl/Boy Gender Filter\n• Zero Advertisements\n• VIP Badge on Profile\n\nPrice: ₹49/Month");
+            if (filterType === 'beauty') localVideo.style.filter = 'brightness(1.15) contrast(1.05)';
+            else if (filterType === 'sunset') localVideo.style.filter = 'sepia(0.4) saturate(1.4)';
+            else if (filterType === 'cyber') localVideo.style.filter = 'hue-rotate(190deg) saturate(1.6)';
+            else if (filterType === 'pink') localVideo.style.filter = 'hue-rotate(300deg) saturate(1.2)';
+            else localVideo.style.filter = 'none';
         }
     </script>
 </body>
