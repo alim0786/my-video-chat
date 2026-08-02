@@ -3,25 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeonChat - Live Video & Text Chat</title>
+    <title>NeonChat - Google Auth & Live Video</title>
+    <!-- Google Sign-In SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0c0c0e; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
         
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999; }
-        .profile-card { background: #161622; border: 1px solid #00ffcc; padding: 25px; border-radius: 20px; width: 90%; max-width: 360px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 0 20px rgba(0,255,204,0.2); }
+        .profile-card { background: #161622; border: 1px solid #00ffcc; padding: 25px; border-radius: 20px; width: 90%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 20px rgba(0,255,204,0.2); }
         .profile-card h2 { color: #00ffcc; text-align: center; font-size: 20px; }
+        
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: 12px; color: #aaa; }
         .input-group input, .input-group select { background: #222232; border: 1px solid #333348; color: white; padding: 10px; border-radius: 8px; outline: none; font-size: 14px; }
-        .btn-start { background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 12px; border-radius: 10px; font-size: 15px; cursor: pointer; margin-top: 5px; }
+        
+        .google-btn-container { display: flex; justify-content: center; margin: 5px 0; }
+        .btn-start { background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 12px; border-radius: 10px; font-size: 15px; cursor: pointer; }
 
         header { margin-bottom: 8px; text-align: center; }
         header h1 { font-size: 20px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.3); }
         .badge { background: #ff0055; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
 
         .app-container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 10px; }
-        
         .video-grid { display: flex; gap: 10px; width: 100%; justify-content: center; flex-wrap: wrap; }
         .video-box { position: relative; flex: 1; min-width: 280px; max-width: 440px; height: 260px; background: #16161e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3a; }
         
@@ -45,17 +49,30 @@
 
         .action-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .btn-next { flex: 1; background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; border: none; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
-        .btn-vip { background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: bold; border: none; padding: 10px; border-radius: 8px; font-size: 12px; cursor: pointer; }
+        .btn-reset { background: #333348; color: #aaa; border: none; padding: 10px; border-radius: 8px; font-size: 11px; cursor: pointer; }
     </style>
 </head>
 <body>
 
+    <!-- Saved / Google Auth Profile Overlay -->
     <div class="modal-overlay" id="profileModal">
         <div class="profile-card">
-            <h2>Setup Your Profile</h2>
+            <h2>Login to NeonChat</h2>
+            
+            <div class="google-btn-container">
+                <!-- Google One-Tap Login Button -->
+                <div id="g_id_onload"
+                    data-client_id="YOUR_GOOGLE_CLIENT_ID"
+                    data-callback="handleGoogleLogin">
+                </div>
+                <div class="g_id_signin" data-type="standard"></div>
+            </div>
+
+            <p style="text-align: center; font-size: 11px; color: #777;">— OR ENTER DETAILS —</p>
+
             <div class="input-group">
                 <label>Your Name / Username</label>
-                <input type="text" id="usernameInput" placeholder="e.g. Alex" value="User">
+                <input type="text" id="usernameInput" placeholder="e.g. Alex">
             </div>
             <div class="input-group">
                 <label>Age</label>
@@ -71,12 +88,12 @@
                     <option value="🌍 Global">🌍 Other / Global</option>
                 </select>
             </div>
-            <button class="btn-start" onclick="saveProfileAndStart()">Start Video Match 🚀</button>
+            <button class="btn-start" onclick="saveAndContinue()">Save & Start Match 🚀</button>
         </div>
     </div>
 
     <header>
-        <h1>NEON CHAT <span class="badge">Live Chat</span></h1>
+        <h1>NEON CHAT <span class="badge">Live</span></h1>
     </header>
 
     <div class="app-container">
@@ -112,7 +129,7 @@
 
             <div class="action-row">
                 <button class="btn-next" onclick="location.reload()">Next Partner ➔</button>
-                <button class="btn-vip" onclick="alert('👑 VIP Feature: Unlimited Filters')">👑 VIP</button>
+                <button class="btn-reset" onclick="resetProfile()">Edit Profile ⚙️</button>
             </div>
         </div>
     </div>
@@ -135,16 +152,52 @@
             ] 
         };
 
-        function saveProfileAndStart() {
+        // AUTO-LOAD SAVED PROFILE ON PAGE LOAD
+        window.onload = () => {
+            const savedProfile = localStorage.getItem('neon_user_profile');
+            if (savedProfile) {
+                myProfile = JSON.parse(savedProfile);
+                document.getElementById('myTag').innerText = `${myProfile.name}, ${myProfile.age} (${myProfile.country})`;
+                document.getElementById('profileModal').style.display = 'none';
+                startCamera();
+            }
+        };
+
+        // Google JWT Decoder
+        function handleGoogleLogin(response) {
+            const responsePayload = parseJwt(response.credential);
+            document.getElementById('usernameInput').value = responsePayload.name;
+            alert(`Logged in as ${responsePayload.name}! Now select Age & Country.`);
+        }
+
+        function parseJwt (token) {
+            var base64Url = token.split('.')[1];
+            var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function saveAndContinue() {
             const name = document.getElementById('usernameInput').value || 'Guest';
             const age = document.getElementById('ageInput').value || '18';
             const country = document.getElementById('countryInput').value || '🌍 Global';
 
             myProfile = { name, age, country };
+            
+            // Save permanently in browser Local Storage
+            localStorage.setItem('neon_user_profile', JSON.stringify(myProfile));
+
             document.getElementById('myTag').innerText = `${name}, ${age} (${country})`;
             document.getElementById('profileModal').style.display = 'none';
 
             startCamera();
+        }
+
+        function resetProfile() {
+            localStorage.removeItem('neon_user_profile');
+            location.reload();
         }
 
         function startCamera() {
@@ -190,7 +243,6 @@
             }
         });
 
-        // Instant Auto-Search on Partner Disconnect
         socket.on('partner-disconnected', () => {
             if (peerConnection) peerConnection.close();
             remoteVideo.srcObject = null;
