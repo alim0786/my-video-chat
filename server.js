@@ -9,28 +9,37 @@ let waitingUser = null;
 
 io.on('connection', (socket) => {
 
-    function matchUser() {
-        if (waitingUser && waitingUser.id !== socket.id) {
-            socket.partnerId = waitingUser.id;
-            waitingUser.partnerId = socket.id;
+    function pairUser(s) {
+        if (waitingUser && waitingUser.id !== s.id) {
+            s.partnerId = waitingUser.id;
+            waitingUser.partnerId = s.id;
 
-            socket.emit('match', { peerId: waitingUser.id, initiator: true });
-            waitingUser.emit('match', { peerId: socket.id, initiator: false });
+            s.emit('match', { peerId: waitingUser.id, initiator: true });
+            waitingUser.emit('match', { peerId: s.id, initiator: false });
 
             waitingUser = null;
         } else {
-            waitingUser = socket;
+            waitingUser = s;
         }
     }
 
-    matchUser();
+    pairUser(socket);
 
     socket.on('find-next', () => {
+        // Purane partner ko inform karo ki humne chhor diya
         if (socket.partnerId) {
             io.to(socket.partnerId).emit('partner-disconnected');
+            const oldPartner = io.sockets.sockets.get(socket.partnerId);
+            if (oldPartner) oldPartner.partnerId = null;
             socket.partnerId = null;
         }
-        matchUser();
+
+        if (waitingUser === socket) {
+            waitingUser = null;
+        }
+
+        // Dubara queue me daalo
+        pairUser(socket);
     });
 
     socket.on('signal', (data) => {
@@ -43,10 +52,11 @@ io.on('connection', (socket) => {
         }
         if (socket.partnerId) {
             io.to(socket.partnerId).emit('partner-disconnected');
+            const oldPartner = io.sockets.sockets.get(socket.partnerId);
+            if (oldPartner) oldPartner.partnerId = null;
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
