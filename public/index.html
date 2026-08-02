@@ -29,7 +29,7 @@
         video { width: 100%; height: 100%; object-fit: cover; transition: filter 0.15s ease; }
         #localVideo { transform: scaleX(-1); }
         
-        .user-tag { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); padding: 4px 10px; border-radius: 15px; font-size: 11px; border: 1px solid rgba(255,255,255,0.1); }
+        .user-tag { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); padding: 4px 10px; border-radius: 15px; font-size: 11px; border: 1px solid rgba(255,255,255,0.1); z-index: 10; }
 
         /* Live Chat Section */
         .chat-card { background: #15151c; border-radius: 16px; padding: 10px; border: 1px solid #252533; height: 150px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -134,7 +134,12 @@
         let targetPeerId;
         let myProfile = {};
 
-        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const rtcConfig = { 
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ] 
+        };
 
         function saveProfileAndStart() {
             const name = document.getElementById('usernameInput').value || 'Guest';
@@ -159,8 +164,13 @@
         }
 
         function createPeerConnection(peerId) {
+            if (peerConnection) return;
+
             peerConnection = new RTCPeerConnection(rtcConfig);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            }
 
             peerConnection.ontrack = event => {
                 remoteVideo.srcObject = event.streams[0];
@@ -177,7 +187,7 @@
             targetPeerId = data.peerId;
             createPeerConnection(targetPeerId);
 
-            // Send My Profile to Partner
+            // Send My Profile info
             socket.emit('signal', { to: targetPeerId, signal: { profile: myProfile } });
 
             if (data.initiator) {
@@ -188,16 +198,19 @@
         });
 
         socket.on('signal', async data => {
-            if (!peerConnection && !data.signal.profile && !data.signal.chat) createPeerConnection(data.from);
-
             if (data.signal.profile) {
                 const p = data.signal.profile;
-                document.getElementById('partnerLabel').innerText = `🟢 ${p.name}, ${p.age} (${p.country})`;
+                document.getElementById('partnerLabel').innerText = `🟢 ${p.name || 'User'}, ${p.age || '18'} (${p.country || ''})`;
+                return;
             }
 
             if (data.signal.chat) {
                 appendMessage(data.signal.sender, data.signal.chat);
+                return;
             }
+
+            // Handle WebRTC Signaling
+            createPeerConnection(data.from);
 
             if (data.signal.sdp) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
@@ -207,18 +220,19 @@
                     socket.emit('signal', { to: data.from, signal: { sdp: answer } });
                 }
             } else if (data.signal.candidate) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                } catch(e) {}
             }
         });
 
-        // Chat Sending System
         function sendMessage() {
             const input = document.getElementById('msgInput');
             const text = input.value.trim();
             if (!text || !targetPeerId) return;
 
             appendMessage("You", text);
-            socket.emit('signal', { to: targetPeerId, signal: { chat: text, sender: myProfile.name } });
+            socket.emit('signal', { to: targetPeerId, signal: { chat: text, sender: myProfile.name || 'You' } });
             input.value = '';
         }
 
@@ -231,7 +245,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Filters
         function applyFilter(filterType, btnElement) {
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
             btnElement.classList.add('active');
