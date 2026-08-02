@@ -13,8 +13,7 @@
         .profile-card { background: #161622; border: 1px solid #00ffcc; padding: 20px; border-radius: 20px; width: 90%; max-width: 380px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 25px rgba(0,255,204,0.25); text-align: center; }
         .profile-card h2 { color: #00ffcc; font-size: 20px; }
         
-        /* Instagram Style View Profile Modal */
-        .view-card { background: #1a1a28; border: 1px solid #00ffcc; padding: 25px; border-radius: 24px; width: 85%; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 15px; box-shadow: 0 0 30px rgba(0,255,204,0.3); position: relative; animation: popUp 0.2s ease-out; }
+        .view-card { background: #1a1a28; border: 1px solid #00ffcc; padding: 25px; border-radius: 24px; width: 85%; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 15px; box-shadow: 0 0 30px rgba(0,255,204,0.3); animation: popUp 0.2s ease-out; }
         @keyframes popUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         
         .view-dp { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); }
@@ -45,14 +44,13 @@
         video { width: 100%; height: 100%; object-fit: cover; transition: filter 0.15s ease; }
         #localVideo { transform: scaleX(-1); }
         
-        /* Interactive Clickable Tag */
         .user-tag { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); padding: 5px 12px; border-radius: 20px; font-size: 11px; border: 1px solid rgba(255,255,255,0.15); z-index: 10; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: transform 0.1s ease; }
         .user-tag:active { transform: scale(0.95); }
         .tag-dp { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid #00ffcc; }
 
         .chat-card { background: #15151c; border-radius: 16px; padding: 10px; border: 1px solid #252533; height: 150px; display: flex; flex-direction: column; justify-content: space-between; }
         .chat-messages { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 5px; height: 100px; font-size: 12px; }
-        .chat-msg { background: #222230; padding: 6px 10px; border-radius: 8px; width: fit-content; max-width: 85%; }
+        .chat-msg { background: #222230; padding: 6px 10px; border-radius: 8px; width: fit-content; max-width: 85%; word-break: break-word; }
         .chat-msg span { font-weight: bold; color: #00ffcc; }
         .chat-input-row { display: flex; gap: 6px; }
         .chat-input { flex: 1; background: #20202c; border: 1px solid #323245; color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; outline: none; }
@@ -70,7 +68,7 @@
 </head>
 <body>
 
-    <!-- Instagram Profile View Pop-up Modal -->
+    <!-- Instagram Profile View Modal -->
     <div class="modal-overlay" id="viewProfileModal" style="display: none;">
         <div class="view-card">
             <img src="" id="viewDpImg" class="view-dp">
@@ -177,7 +175,8 @@
         const rtcConfig = { 
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
             ] 
         };
 
@@ -191,13 +190,25 @@
             }
         };
 
+        // Automatic Image Compression for Smooth Signaling
         function loadGalleryPhoto(event) {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    myProfile.dp = e.target.result;
-                    document.getElementById('previewDP').src = e.target.result;
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = 150;
+                        canvas.height = 150;
+                        ctx.drawImage(img, 0, 0, 150, 150);
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        
+                        myProfile.dp = compressedDataUrl;
+                        document.getElementById('previewDP').src = compressedDataUrl;
+                    };
                 };
                 reader.readAsDataURL(file);
             }
@@ -236,7 +247,6 @@
             document.getElementById('myTag').innerHTML = `<img src="${myProfile.dp}" class="tag-dp"> <span>${myProfile.name}, ${myProfile.age} (${myProfile.country})</span>`;
         }
 
-        // Open Profile View Popup
         function openMyProfile() {
             showProfilePopup(myProfile.dp, myProfile.name, myProfile.age, myProfile.country);
         }
@@ -348,7 +358,7 @@
                 } catch(e) { console.error(e); }
             } else if (data.signal.candidate) {
                 try {
-                    if (peerConnection.remoteDescription) {
+                    if (peerConnection && peerConnection.remoteDescription) {
                         await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
                     }
                 } catch(e) {}
@@ -371,16 +381,4 @@
 
         function appendMessage(sender, text) {
             const chatBox = document.getElementById('chatBox');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-msg';
-            msgDiv.innerHTML = `<span>${sender}:</span> ${text}`;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function applyFilter(filterType, btnElement) {
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            btnElement.classList.add('active');
-
-            if (filterType === 'beauty') localVideo.style.filter = 'brightness(1.15) contrast(1.05)';
-            else if (
+            const msgDi
