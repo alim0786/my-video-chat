@@ -1,6 +1,7 @@
 {
-  "name": "webrtc-chat",
+  "name": "my-video-chat",
   "version": "1.0.0",
+  "description": "Live Video Chat App",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
