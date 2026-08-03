@@ -3,53 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Video Chat</title>
+  <title>NEON CHAT - Live Call</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: white;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
-    }
-    .video-container {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
-    video {
-      width: 100%;
-      max-width: 400px;
-      height: 300px;
-      background-color: #000;
-      border-radius: 10px;
-      object-fit: cover;
-    }
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
-      background-color: #00ffcc;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      margin-top: 15px;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background-color: #0d0d13; color: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
+    
+    header h1 { font-size: 24px; color: #fff; margin: 10px 0; }
+    header h1 span { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
+
+    /* Video Container */
+    .chat-container { width: 100%; max-width: 800px; margin-top: 10px; }
+    .video-grid { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+    .video-box { position: relative; width: 48%; min-width: 150px; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .video-label { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+
+    /* Chat Section */
+    .chat-box { background: #161622; border-radius: 8px; padding: 10px; height: 150px; overflow-y: auto; text-align: left; margin-bottom: 10px; font-size: 14px; }
+    .chat-input-area { display: flex; gap: 8px; }
+    .chat-input-area input { flex: 1; padding: 10px; background: #0d0d13; border: 1px solid #333; border-radius: 6px; color: #fff; }
+    .btn-action { padding: 10px 16px; background: #333; border: none; border-radius: 6px; color: #fff; font-weight: bold; cursor: pointer; }
+    .btn-skip { background: #ff3366; }
   </style>
 </head>
 <body>
 
-  <h1>NEON CHAT - Live Call</h1>
-  
-  <div class="video-container">
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
-  </div>
+  <header>
+    <h1>NEON CHAT <span>Live Call</span></h1>
+  </header>
 
-  <button id="startBtn" onclick="startMatching()">Save & Start Matching 🚀</button>
+  <!-- Direct Chat & Video Layout -->
+  <div class="chat-container">
+    <div class="video-grid">
+      <div class="video-box">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <div class="video-label">You</div>
+      </div>
+      <div class="video-box">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div id="partnerStatus" class="video-label">Requesting Camera Access...</div>
+      </div>
+    </div>
+
+    <div class="chat-box" id="chatBox">
+      <div><span style="color: #00ffcc;">System:</span> Connected to Live Chat! Say hi 👋</div>
+    </div>
+
+    <div class="chat-input-area">
+      <button class="btn-action btn-skip" onclick="skipPartner()">Next ⏭</button>
+      <input type="text" id="msgInput" placeholder="Type a message...">
+      <button class="btn-action" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -58,7 +63,7 @@
     let peerConnection;
     let partnerId = null;
 
-    // STUN + TURN Credentials (Metered Server Integrated)
+    // Metered TURN Credentials Integrated
     const rtcConfig = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -75,31 +80,28 @@
       ]
     };
 
-    // Camera aur Mic access karna
-    async function initMedia() {
+    // Page khulte hi direct Camera & Mic permission maango
+    async function startAppDirectly() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('localVideo').srcObject = localStream;
+        document.getElementById('partnerStatus').innerText = "Searching Partner...";
+        
+        // Permission milne ke turant baad partner search karo
+        socket.emit('find-partner');
       } catch (err) {
-        alert("Camera and Microphone access required!");
-        console.error(err);
+        document.getElementById('partnerStatus').innerText = "Camera Access Denied!";
+        alert("Live video chat ke liye Camera aur Microphone permission dena zaroori hai.");
       }
     }
 
-    initMedia();
-
-    function startMatching() {
-      document.getElementById('startBtn').innerText = "Searching Partner...";
-      socket.emit('find-partner');
-    }
-
-    socket.on('waiting', (msg) => {
-      console.log(msg);
-    });
+    // Auto-executes on Page Load
+    window.onload = startAppDirectly;
 
     socket.on('partner-found', async (data) => {
       partnerId = data.partnerId;
-      document.getElementById('startBtn').innerText = "Connected!";
+      document.getElementById('partnerStatus').innerText = "Connected 🟢";
+      
       createPeerConnection();
 
       if (data.createOffer) {
@@ -143,20 +145,43 @@
       if (peerConnection && data.candidate) {
         try {
           await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (e) {
-          console.error("Error adding ice candidate", e);
-        }
+        } catch (e) { console.error(e); }
       }
     });
 
-    socket.on('user-disconnected', () => {
+    function sendMessage() {
+      const msg = document.getElementById('msgInput').value;
+      if (msg && partnerId) {
+        socket.emit('send-message', { target: partnerId, text: msg });
+        appendMsg(`You: ${msg}`);
+        document.getElementById('msgInput').value = '';
+      }
+    }
+
+    socket.on('receive-message', (data) => {
+      appendMsg(`Partner: ${data.text}`);
+    });
+
+    function appendMsg(msg) {
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
+      div.innerText = msg;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function skipPartner() {
       if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
       }
       document.getElementById('remoteVideo').srcObject = null;
-      document.getElementById('startBtn').innerText = "Start Matching 🚀";
-      alert("Partner disconnected.");
+      document.getElementById('partnerStatus').innerText = "Searching Partner...";
+      socket.emit('skip-partner', { target: partnerId });
+    }
+
+    socket.on('partner-disconnected', () => {
+      skipPartner();
     });
   </script>
 </body>
