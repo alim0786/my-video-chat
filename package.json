@@ -1,6 +1,13 @@
-my-video-chat/
-├── server.js
-├── package.json
-└── public/
-    └── index.html
-
+{
+  "name": "my-video-chat",
+  "version": "1.0.0",
+  "description": "Live Video Chat App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  }
+}
